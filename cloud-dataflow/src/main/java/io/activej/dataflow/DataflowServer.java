@@ -18,6 +18,7 @@ package io.activej.dataflow;
 
 import io.activej.async.process.AsyncCloseable;
 import io.activej.bytebuf.ByteBuf;
+import io.activej.common.ApplicationSettings;
 import io.activej.common.MemSize;
 import io.activej.csp.ChannelConsumer;
 import io.activej.csp.binary.ByteBufsCodec;
@@ -30,13 +31,14 @@ import io.activej.dataflow.command.DataflowCommandDownload;
 import io.activej.dataflow.command.DataflowCommandExecute;
 import io.activej.dataflow.command.DataflowResponse;
 import io.activej.dataflow.graph.StreamId;
-import io.activej.dataflow.graph.TaskContext;
+import io.activej.dataflow.graph.Task;
 import io.activej.dataflow.inject.BinarySerializerModule.BinarySerializerLocator;
-import io.activej.dataflow.node.Node;
 import io.activej.datastream.StreamConsumer;
 import io.activej.datastream.csp.ChannelSerializer;
 import io.activej.eventloop.Eventloop;
 import io.activej.inject.ResourceLocator;
+import io.activej.jmx.api.attribute.JmxAttribute;
+import io.activej.jmx.api.attribute.JmxOperation;
 import io.activej.net.AbstractServer;
 import io.activej.net.socket.tcp.AsyncTcpSocket;
 import io.activej.promise.SettablePromise;
@@ -45,22 +47,33 @@ import org.jetbrains.annotations.Nullable;
 
 import java.net.InetAddress;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Server for processing JSON commands.
  */
 @SuppressWarnings("rawtypes")
 public final class DataflowServer extends AbstractServer<DataflowServer> {
+	private static final int MAX_LAST_RAN_TASKS = ApplicationSettings.getInt(DataflowServer.class, "maxLastRanTasks", 1000);
+
 	private final Map<StreamId, ChannelQueue<ByteBuf>> pendingStreams = new HashMap<>();
 	private final Map<Class, CommandHandler> handlers = new HashMap<>();
 
 	private final ByteBufsCodec<DataflowCommand, DataflowResponse> codec;
 	private final BinarySerializerLocator serializers;
 	private final ResourceLocator environment;
+
+	private final Map<Long, Task> runningTasks = new HashMap<>();
+	private final Map<StreamId, BinaryStats> uploads = new HashMap<>();
+
+	private final Map<Long, Task> lastRanTasks = new LinkedHashMap<Long, Task>() {
+		@Override
+		protected boolean removeEldestEntry(Map.Entry eldest) {
+			return size() > MAX_LAST_RAN_TASKS;
+		}
+	};
+
+	private int succeededTasks = 0, canceledTasks = 0, failedTasks = 0;
 
 	{
 		handlers.put(DataflowCommandDownload.class, new DownloadCommandHandler());
@@ -105,7 +118,7 @@ public final class DataflowServer extends AbstractServer<DataflowServer> {
 			consumer.withAcknowledgement(ack ->
 					ack.whenComplete(($, e) -> {
 						if (e != null) {
-							logger.warn("Exception occurred while trying to send data");
+							logger.warn("Exception occurred while trying to send data", e);
 						}
 						messaging.close();
 					}));
@@ -115,23 +128,32 @@ public final class DataflowServer extends AbstractServer<DataflowServer> {
 	private class ExecuteCommandHandler implements CommandHandler<DataflowCommandExecute, DataflowResponse> {
 		@Override
 		public void onCommand(Messaging<DataflowCommandExecute, DataflowResponse> messaging, DataflowCommandExecute command) {
-			TaskContext task = new TaskContext(environment);
+			long taskId = command.getTaskId();
+			Task task = new Task(taskId, DataflowServer.this, environment, command.getNodes());
 			try {
-				for (Node node : command.getNodes()) {
-					node.createAndBind(task);
-				}
+				task.bind();
 			} catch (Exception e) {
-				logger.error("Failed to createAndBind task: {}", command, e);
+				logger.error("Failed to construct task: {}", command, e);
 				sendResponse(messaging, e);
 				return;
 			}
-
+			runningTasks.put(taskId, task);
 			task.execute()
 					.whenComplete(($, throwable) -> {
+						runningTasks.remove(taskId);
+						lastRanTasks.put(taskId, task);
+
 						if (throwable == null) {
+							succeededTasks++;
 							logger.info("Task executed successfully: {}", command);
 						} else {
-							logger.error("Failed to execute task: {}", command, throwable);
+							if (throwable == AsyncCloseable.CLOSE_EXCEPTION) {
+								canceledTasks++;
+								logger.error("Canceled task: {}", command, throwable);
+							} else {
+								failedTasks++;
+								logger.error("Failed to execute task: {}", command, throwable);
+							}
 						}
 						sendResponse(messaging, throwable);
 					});
@@ -158,6 +180,9 @@ public final class DataflowServer extends AbstractServer<DataflowServer> {
 	public <T> StreamConsumer<T> upload(StreamId streamId, Class<T> type) {
 		BinarySerializer<T> serializer = serializers.get(type);
 
+		BinaryStats stats = new BinaryStats();
+		uploads.put(streamId, stats);
+
 		ChannelSerializer<T> streamSerializer = ChannelSerializer.create(serializer)
 				.withInitialBufferSize(MemSize.kilobytes(256))
 				.withAutoFlushInterval(Duration.ZERO)
@@ -171,7 +196,7 @@ public final class DataflowServer extends AbstractServer<DataflowServer> {
 		} else {
 			logger.info("onUpload: transferring {}, pending downloads: {}", streamId, pendingStreams.size());
 		}
-		streamSerializer.getOutput().set(forwarder.getConsumer());
+		streamSerializer.getOutput().set(forwarder.getConsumer().transformWith(stats));
 		streamSerializer.getAcknowledgement()
 				.whenException(() -> {
 					ChannelQueue<ByteBuf> removed = pendingStreams.remove(streamId);
@@ -218,5 +243,60 @@ public final class DataflowServer extends AbstractServer<DataflowServer> {
 		pendingStreams.clear();
 		pending.forEach(AsyncCloseable::close);
 		cb.set(null);
+	}
+
+	public Map<StreamId, BinaryStats> getUploadStats() {
+		return uploads;
+	}
+
+	public Map<Long, Task> getRunningTasks() {
+		return runningTasks;
+	}
+
+	public Map<Long, Task> getLastRanTasks() {
+		return lastRanTasks;
+	}
+
+	@JmxAttribute
+	public int getNumberOfRunningTasks() {
+		return runningTasks.size();
+	}
+
+	@JmxAttribute
+	public int getSucceededTasks() {
+		return succeededTasks;
+	}
+
+	@JmxAttribute
+	public int getFailedTasks() {
+		return failedTasks;
+	}
+
+	@JmxAttribute
+	public int getCanceledTasks() {
+		return canceledTasks;
+	}
+
+	@JmxOperation
+	public void cancelAll() {
+		runningTasks.values().forEach(Task::cancel);
+	}
+
+	@JmxOperation
+	public boolean cancel(long taskID) {
+		Task task = runningTasks.get(taskID);
+		if (task != null) {
+			task.cancel();
+			return true;
+		}
+		return false;
+	}
+
+	@JmxOperation
+	public void cancelTask(long id) {
+		Task task = runningTasks.get(id);
+		if (task != null) {
+			task.cancel();
+		}
 	}
 }

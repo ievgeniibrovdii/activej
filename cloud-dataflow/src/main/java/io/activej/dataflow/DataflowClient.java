@@ -45,6 +45,8 @@ import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -65,6 +67,7 @@ public final class DataflowClient {
 
 	private final ByteBufsCodec<DataflowResponse, DataflowCommand> codec;
 	private final BinarySerializerLocator serializers;
+	private final Map<StreamId, BinaryStats> downloads = new HashMap<>();
 
 	private final AtomicInteger secondaryId = new AtomicInteger(ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE));
 
@@ -83,11 +86,18 @@ public final class DataflowClient {
 		return this;
 	}
 
+	public Map<StreamId, BinaryStats> getDownloadStats() {
+		return downloads;
+	}
+
 	public <T> Promise<StreamSupplier<T>> download(InetSocketAddress address, StreamId streamId, Class<T> type) {
 		return AsyncTcpSocketNio.connect(address, 0, socketSettings)
 				.then(socket -> {
 					Messaging<DataflowResponse, DataflowCommand> messaging = MessagingWithBinaryStreaming.create(socket, codec);
 					DataflowCommandDownload commandDownload = new DataflowCommandDownload(streamId);
+
+					BinaryStats stats = new BinaryStats();
+					downloads.put(streamId, stats);
 
 					return messaging.send(commandDownload)
 							.map($ -> {
@@ -101,6 +111,7 @@ public final class DataflowClient {
 										() -> ChannelFileBuffer.create(executor, secondaryPath.resolve(secondaryId.getAndIncrement() + ".bin")));
 
 								return messaging.receiveBinaryStream()
+										.transformWith(stats)
 										.transformWith(buffer)
 										.transformWith(ChannelDeserializer.create(serializers.get(type))
 												.withExplicitEndOfStream())
@@ -155,8 +166,7 @@ public final class DataflowClient {
 				StreamDataAcceptor<T> dataAcceptor = getDataAcceptor();
 				assert dataAcceptor != null;
 				input.resume(item -> {
-					count++;
-					if (count == 1 || count % 1_000 == 0) {
+					if (count++ == 1 || count % 1_000 == 0) {
 						logger.info("Received {} items from stream {}({}): {}", count, streamId, address, item);
 					}
 					dataAcceptor.accept(item);
@@ -179,8 +189,8 @@ public final class DataflowClient {
 			this.messaging = MessagingWithBinaryStreaming.create(socket, codec);
 		}
 
-		public Promise<Void> execute(Collection<Node> nodes) {
-			return messaging.send(new DataflowCommandExecute(new ArrayList<>(nodes)))
+		public Promise<Void> execute(long taskId, Collection<Node> nodes) {
+			return messaging.send(new DataflowCommandExecute(taskId, new ArrayList<>(nodes)))
 					.then(messaging::receive)
 					.then(response -> {
 						messaging.close();

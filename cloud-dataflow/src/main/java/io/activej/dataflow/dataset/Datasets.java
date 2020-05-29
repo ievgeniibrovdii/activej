@@ -17,9 +17,7 @@
 package io.activej.dataflow.dataset;
 
 import io.activej.dataflow.dataset.impl.*;
-import io.activej.dataflow.graph.DataflowContext;
 import io.activej.dataflow.graph.Partition;
-import io.activej.dataflow.graph.StreamId;
 import io.activej.datastream.processor.StreamJoin.Joiner;
 import io.activej.datastream.processor.StreamReducers.Reducer;
 import io.activej.datastream.processor.StreamReducers.ReducerToResult;
@@ -34,22 +32,11 @@ public final class Datasets {
 
 	public static <K, T> SortedDataset<K, T> castToSorted(Dataset<T> dataset, Class<K> keyType,
 	                                                      Function<T, K> keyFunction, Comparator<K> keyComparator) {
-		return new SortedDataset<K, T>(dataset.valueType(), keyComparator, keyType, keyFunction) {
-			@Override
-			public List<StreamId> channels(DataflowContext context) {
-				return dataset.channels(context);
-			}
-		};
+		return new DatasetAlreadySorted<>(dataset, keyComparator, keyType, keyFunction);
 	}
 
 	public static <K, T> SortedDataset<K, T> castToSorted(LocallySortedDataset<K, T> dataset) {
-		return new SortedDataset<K, T>(dataset.valueType(), dataset.keyComparator(), dataset.keyType(),
-				dataset.keyFunction()) {
-			@Override
-			public List<StreamId> channels(DataflowContext context) {
-				return dataset.channels(context);
-			}
-		};
+		return castToSorted(dataset, dataset.keyType(), dataset.keyFunction(), dataset.keyComparator());
 	}
 
 	public static <K, L, R, V> SortedDataset<K, V> join(SortedDataset<K, L> left, SortedDataset<K, R> right,

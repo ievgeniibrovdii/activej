@@ -17,7 +17,7 @@
 package io.activej.dataflow.node;
 
 import io.activej.dataflow.graph.StreamId;
-import io.activej.dataflow.graph.TaskContext;
+import io.activej.dataflow.graph.Task;
 import io.activej.datastream.processor.StreamSorter;
 import io.activej.datastream.processor.StreamSorterStorage;
 import io.activej.promise.Promise;
@@ -34,10 +34,10 @@ import static java.util.Collections.singletonList;
  * @param <K> keys type
  * @param <T> data items type
  */
-public final class NodeSort<K, T> implements Node {
+public final class NodeSort<K, T> extends AbstractNode {
 
 	public interface StreamSorterStorageFactory {
-		<T> StreamSorterStorage<T> create(Class<T> type, TaskContext context, Promise<Void> taskExecuted);
+		<T> StreamSorterStorage<T> create(Class<T> type, Task context, Promise<Void> taskExecuted);
 	}
 
 	private final Class<T> type;
@@ -49,13 +49,14 @@ public final class NodeSort<K, T> implements Node {
 	private final StreamId input;
 	private final StreamId output;
 
-	public NodeSort(Class<T> type, Function<T, K> keyFunction, Comparator<K> keyComparator,
+	public NodeSort(int index, Class<T> type, Function<T, K> keyFunction, Comparator<K> keyComparator,
 			boolean deduplicate, int itemsInMemorySize, StreamId input) {
-		this(type, keyFunction, keyComparator, deduplicate, itemsInMemorySize, input, new StreamId());
+		this(index, type, keyFunction, keyComparator, deduplicate, itemsInMemorySize, input, new StreamId());
 	}
 
-	public NodeSort(Class<T> type, Function<T, K> keyFunction, Comparator<K> keyComparator,
+	public NodeSort(int index, Class<T> type, Function<T, K> keyFunction, Comparator<K> keyComparator,
 			boolean deduplicate, int itemsInMemorySize, StreamId input, StreamId output) {
+		super(index);
 		this.type = type;
 		this.keyFunction = keyFunction;
 		this.keyComparator = keyComparator;
@@ -76,12 +77,12 @@ public final class NodeSort<K, T> implements Node {
 	}
 
 	@Override
-	public void createAndBind(TaskContext taskContext) {
-		StreamSorterStorageFactory storageFactory = taskContext.get(StreamSorterStorageFactory.class);
-		StreamSorterStorage<T> storage = storageFactory.create(type, taskContext, taskContext.getExecutionPromise());
+	public void createAndBind(Task task) {
+		StreamSorterStorageFactory storageFactory = task.get(StreamSorterStorageFactory.class);
+		StreamSorterStorage<T> storage = storageFactory.create(type, task, task.getExecutionPromise());
 		StreamSorter<K, T> streamSorter = StreamSorter.create(storage, keyFunction, keyComparator, deduplicate, itemsInMemorySize);
-		taskContext.bindChannel(input, streamSorter.getInput());
-		taskContext.export(output, streamSorter.getOutput());
+		task.bindChannel(input, streamSorter.getInput());
+		task.export(output, streamSorter.getOutput());
 	}
 
 	public Class<T> getType() {

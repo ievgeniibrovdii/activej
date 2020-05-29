@@ -41,7 +41,7 @@ public final class DatasetSupplierOfId<T> extends Dataset<T> {
 		List<Partition> availablePartitions = graph.getAvailablePartitions();
 		for (int i = 0, size = availablePartitions.size(); i < size; i++) {
 			Partition partition = availablePartitions.get(i);
-			NodeSupplierOfId<T> node = new NodeSupplierOfId<>(id, i, size);
+			NodeSupplierOfId<T> node = new NodeSupplierOfId<>(context.generateNodeIndex(), id, i, size);
 			graph.addNode(partition, node);
 			outputStreamIds.add(node.getOutput());
 		}

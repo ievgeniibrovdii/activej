@@ -29,9 +29,12 @@ import io.activej.dataflow.node.NodeSort;
 import io.activej.datastream.processor.StreamReducers.ReducerToResult;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
+
+import static java.util.Collections.singletonList;
 
 public final class DatasetSplitSortReduceRepartitionReduce<K, I, O, A> extends Dataset<O> {
 	private final Dataset<I> input;
@@ -65,19 +68,19 @@ public final class DatasetSplitSortReduceRepartitionReduce<K, I, O, A> extends D
 		List<NodeShard<K, I>> sharders = new ArrayList<>();
 		for (StreamId inputStreamId : input.channels(context.withoutFixedNonce())) {
 			Partition partition = graph.getPartition(inputStreamId);
-			NodeShard<K, I> sharder = new NodeShard<>(inputKeyFunction, inputStreamId, nonce);
+			NodeShard<K, I> sharder = new NodeShard<>(context.generateNodeIndex(), inputKeyFunction, inputStreamId, nonce);
 			graph.addNode(partition, sharder);
 			sharders.add(sharder);
 		}
 
 		for (Partition partition : graph.getAvailablePartitions()) {
-			NodeReduce<K, O, A> nodeReduce = new NodeReduce<>(keyComparator);
+			NodeReduce<K, O, A> nodeReduce = new NodeReduce<>(context.generateNodeIndex(), keyComparator);
 			graph.addNode(partition, nodeReduce);
 
 			for (NodeShard<K, I> sharder : sharders) {
 				StreamId sharderOutput = sharder.newPartition();
 				graph.addNodeStream(sharder, sharderOutput);
-				StreamId reducerInput = sortReduceForward(graph, sharderOutput, partition);
+				StreamId reducerInput = sortReduceForward(context, sharderOutput, partition);
 				nodeReduce.addInput(reducerInput, accumulatorKeyFunction, reducer.accumulatorToOutput());
 			}
 
@@ -87,16 +90,22 @@ public final class DatasetSplitSortReduceRepartitionReduce<K, I, O, A> extends D
 		return outputStreamIds;
 	}
 
-	private StreamId sortReduceForward(DataflowGraph graph, StreamId sourceStreamId, Partition targetPartition) {
+	private StreamId sortReduceForward(DataflowContext context, StreamId sourceStreamId, Partition targetPartition) {
+		DataflowGraph graph = context.getGraph();
 		Partition sourcePartition = graph.getPartition(sourceStreamId);
 
-		NodeSort<K, I> nodeSort = new NodeSort<>(input.valueType(), inputKeyFunction, keyComparator, false, 1_000_000, sourceStreamId);
+		NodeSort<K, I> nodeSort = new NodeSort<>(context.generateNodeIndex(), input.valueType(), inputKeyFunction, keyComparator, false, 1_000_000, sourceStreamId);
 		graph.addNode(sourcePartition, nodeSort);
 
-		NodeReduceSimple<K, I, A, A> nodeReduce = new NodeReduceSimple<>(inputKeyFunction, keyComparator, reducer.inputToAccumulator());
+		NodeReduceSimple<K, I, A, A> nodeReduce = new NodeReduceSimple<>(context.generateNodeIndex(), inputKeyFunction, keyComparator, reducer.inputToAccumulator());
 		nodeReduce.addInput(nodeSort.getOutput());
 		graph.addNode(sourcePartition, nodeReduce);
 
-		return DatasetUtils.forwardChannel(graph, accumulatorType, nodeReduce.getOutput(), targetPartition);
+		return DatasetUtils.forwardChannel(context, accumulatorType, nodeReduce.getOutput(), targetPartition);
+	}
+
+	@Override
+	public Collection<Dataset<?>> getBases() {
+		return singletonList(input);
 	}
 }

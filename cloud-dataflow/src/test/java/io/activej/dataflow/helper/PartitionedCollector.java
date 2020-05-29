@@ -33,7 +33,7 @@ public final class PartitionedCollector<T> {
 
 		List<Promise<Void>> streamingPromises = new ArrayList<>();
 		for (StreamId streamId : input.channels(DataflowContext.of(graph))) {
-			NodeUpload<String> nodeUpload = new NodeUpload<>(String.class, streamId);
+			NodeUpload<String> nodeUpload = new NodeUpload<>(0, String.class, streamId);
 			Partition partition = graph.getPartition(streamId);
 			graph.addNode(partition, nodeUpload);
 			StreamSupplier<T> supplier = StreamSupplier.ofPromise(client.download(partition.getAddress(), streamId, input.valueType()));

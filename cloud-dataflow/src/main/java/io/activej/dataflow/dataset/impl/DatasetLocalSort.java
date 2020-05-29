@@ -24,9 +24,12 @@ import io.activej.dataflow.graph.StreamId;
 import io.activej.dataflow.node.NodeSort;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
+
+import static java.util.Collections.singletonList;
 
 public final class DatasetLocalSort<K, T> extends LocallySortedDataset<K, T> {
 	private final Dataset<T> input;
@@ -42,10 +45,15 @@ public final class DatasetLocalSort<K, T> extends LocallySortedDataset<K, T> {
 		List<StreamId> outputStreamIds = new ArrayList<>();
 		List<StreamId> streamIds = input.channels(context);
 		for (StreamId streamId : streamIds) {
-			NodeSort<K, T> node = new NodeSort<>(input.valueType(), keyFunction(), keyComparator(), false, 1_000_000, streamId);
+			NodeSort<K, T> node = new NodeSort<>(context.generateNodeIndex(), input.valueType(), keyFunction(), keyComparator(), false, 1_000_000, streamId);
 			graph.addNode(graph.getPartition(streamId), node);
 			outputStreamIds.add(node.getOutput());
 		}
 		return outputStreamIds;
+	}
+
+	@Override
+	public Collection<Dataset<?>> getBases() {
+		return singletonList(input);
 	}
 }

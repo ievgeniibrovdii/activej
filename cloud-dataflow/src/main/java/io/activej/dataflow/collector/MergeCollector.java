@@ -52,11 +52,12 @@ public class MergeCollector<K, T> {
 	}
 
 	public StreamSupplier<T> compile(DataflowGraph graph) {
-		List<StreamId> inputStreamIds = input.channels(DataflowContext.of(graph));
+		DataflowContext context = DataflowContext.of(graph);
+		List<StreamId> inputStreamIds = input.channels(context);
 
 		StreamMerger<K, T> merger = StreamMerger.create(keyFunction, keyComparator, distinct);
 		for (StreamId streamId : inputStreamIds) {
-			NodeUpload<T> nodeUpload = new NodeUpload<>(input.valueType(), streamId);
+			NodeUpload<T> nodeUpload = new NodeUpload<>(context.generateNodeIndex(), input.valueType(), streamId);
 			Partition partition = graph.getPartition(streamId);
 			graph.addNode(partition, nodeUpload);
 			StreamSupplier<T> supplier = StreamSupplier.ofPromise(client.download(partition.getAddress(), streamId, input.valueType()));

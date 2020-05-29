@@ -23,6 +23,9 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class DataflowContext {
 	private final DataflowGraph graph;
 
+	private int nextNodeIndex = 0;
+
+
 	@Nullable
 	private final Integer nonce;
 
@@ -33,6 +36,10 @@ public final class DataflowContext {
 
 	public static DataflowContext of(DataflowGraph graph) {
 		return new DataflowContext(graph, null);
+	}
+
+	public int generateNodeIndex() {
+		return nextNodeIndex++;
 	}
 
 	public DataflowGraph getGraph() {

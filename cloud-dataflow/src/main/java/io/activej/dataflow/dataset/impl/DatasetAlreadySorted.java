@@ -17,44 +17,32 @@
 package io.activej.dataflow.dataset.impl;
 
 import io.activej.dataflow.dataset.Dataset;
-import io.activej.dataflow.dataset.LocallySortedDataset;
 import io.activej.dataflow.dataset.SortedDataset;
 import io.activej.dataflow.graph.DataflowContext;
-import io.activej.dataflow.graph.Partition;
 import io.activej.dataflow.graph.StreamId;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
 
-import static io.activej.dataflow.dataset.DatasetUtils.repartitionAndSort;
 import static java.util.Collections.singletonList;
 
-public final class DatasetRepartitionAndSort<K, T> extends SortedDataset<K, T> {
-	private final LocallySortedDataset<K, T> input;
-	@Nullable
-	private final List<Partition> partitions;
+public final class DatasetAlreadySorted<K, T> extends SortedDataset<K, T> {
+	private final Dataset<T> dataset;
 
-	public DatasetRepartitionAndSort(LocallySortedDataset<K, T> input) {
-		this(input, null);
-	}
-
-	public DatasetRepartitionAndSort(LocallySortedDataset<K, T> input, @Nullable List<Partition> partitions) {
-		super(input.valueType(), input.keyComparator(), input.keyType(), input.keyFunction());
-		this.input = input;
-		this.partitions = partitions;
+	public DatasetAlreadySorted(Dataset<T> dataset, Comparator<K> keyComparator, Class<K> keyType, Function<T, K> keyFunction) {
+		super(dataset.valueType(), keyComparator, keyType, keyFunction);
+		this.dataset = dataset;
 	}
 
 	@Override
 	public List<StreamId> channels(DataflowContext context) {
-		List<Partition> ps = partitions != null && !partitions.isEmpty() ?
-				partitions :
-				context.getGraph().getAvailablePartitions();
-		return repartitionAndSort(context, input, ps);
+		return dataset.channels(context);
 	}
 
 	@Override
 	public Collection<Dataset<?>> getBases() {
-		return singletonList(input);
+		return singletonList(dataset);
 	}
 }

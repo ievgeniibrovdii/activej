@@ -25,8 +25,10 @@ import io.activej.dataflow.command.DataflowCommand;
 import io.activej.dataflow.command.DataflowResponse;
 import io.activej.dataflow.inject.BinarySerializerModule.BinarySerializerLocator;
 import io.activej.dataflow.inject.DataflowModule;
+import io.activej.dataflow.server.http.DataflowServerControlServlet;
 import io.activej.eventloop.Eventloop;
 import io.activej.eventloop.inspector.ThrottlingController;
+import io.activej.http.AsyncHttpServer;
 import io.activej.inject.Injector;
 import io.activej.inject.annotation.Inject;
 import io.activej.inject.annotation.Optional;
@@ -50,6 +52,9 @@ public abstract class DataflowServerLauncher extends Launcher {
 
 	@Inject
 	DataflowServer dataflowServer;
+
+	@Inject
+	AsyncHttpServer debugServer;
 
 	@Provides
 	Eventloop eventloop(Config config, @Optional ThrottlingController throttlingController) {
@@ -78,8 +83,18 @@ public abstract class DataflowServerLauncher extends Launcher {
 	@Provides
 	Config config() {
 		return Config.create()
+				.with("dataflow.server.listenAddresses", "127.0.0.1:3333")
 				.overrideWith(Config.ofClassPathProperties(PROPERTIES_FILE, true))
 				.overrideWith(Config.ofProperties(System.getProperties()).getChild("config"));
+	}
+
+	@Provides
+	AsyncHttpServer debugServer(Eventloop eventloop, Executor executor, DataflowServer server, DataflowClient client) {
+		DataflowServerControlServlet servlet = new DataflowServerControlServlet(server, client, executor);
+		AsyncHttpServer debugServer = AsyncHttpServer.create(eventloop, servlet)
+				.withListenPort(8080);
+		servlet.setParent(debugServer);
+		return debugServer;
 	}
 
 	@Override

@@ -16,6 +16,7 @@
 
 package io.activej.dataflow.dataset.impl;
 
+import io.activej.dataflow.dataset.Dataset;
 import io.activej.dataflow.dataset.SortedDataset;
 import io.activej.dataflow.graph.DataflowContext;
 import io.activej.dataflow.graph.DataflowGraph;
@@ -24,11 +25,14 @@ import io.activej.dataflow.node.NodeJoin;
 import io.activej.datastream.processor.StreamJoin.Joiner;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 
 import static io.activej.dataflow.dataset.DatasetUtils.repartitionAndSort;
+import static java.util.Collections.singletonList;
 
 public final class DatasetJoin<K, L, R, V> extends SortedDataset<K, V> {
 	private final SortedDataset<K, L> left;
@@ -59,11 +63,16 @@ public final class DatasetJoin<K, L, R, V> extends SortedDataset<K, V> {
 		for (int i = 0; i < leftStreamIds.size(); i++) {
 			StreamId leftStreamId = leftStreamIds.get(i);
 			StreamId rightStreamId = rightStreamIds.get(i);
-			NodeJoin<K, L, R, V> node = new NodeJoin<>(leftStreamId, rightStreamId, left.keyComparator(),
+			NodeJoin<K, L, R, V> node = new NodeJoin<>(context.generateNodeIndex(), leftStreamId, rightStreamId, left.keyComparator(),
 					left.keyFunction(), right.keyFunction(), joiner);
 			graph.addNode(graph.getPartition(leftStreamId), node);
 			outputStreamIds.add(node.getOutput());
 		}
 		return outputStreamIds;
+	}
+
+	@Override
+	public Collection<Dataset<?>> getBases() {
+		return Arrays.asList(left, right);
 	}
 }

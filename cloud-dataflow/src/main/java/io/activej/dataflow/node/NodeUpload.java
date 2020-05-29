@@ -18,7 +18,7 @@ package io.activej.dataflow.node;
 
 import io.activej.dataflow.DataflowServer;
 import io.activej.dataflow.graph.StreamId;
-import io.activej.dataflow.graph.TaskContext;
+import io.activej.dataflow.graph.Task;
 
 import java.util.Collection;
 
@@ -29,14 +29,16 @@ import static java.util.Collections.singletonList;
  *
  * @param <T> data items type
  */
-public final class NodeUpload<T> implements Node {
+public final class NodeUpload<T> extends AbstractNode {
 	private Class<T> type;
 	private StreamId streamId;
 
-	public NodeUpload() {
+	public NodeUpload(int index) {
+		super(index);
 	}
 
-	public NodeUpload(Class<T> type, StreamId streamId) {
+	public NodeUpload(int index, Class<T> type, StreamId streamId) {
+		super(index);
 		this.type = type;
 		this.streamId = streamId;
 	}
@@ -47,9 +49,9 @@ public final class NodeUpload<T> implements Node {
 	}
 
 	@Override
-	public void createAndBind(TaskContext taskContext) {
-		DataflowServer server = taskContext.get(DataflowServer.class);
-		taskContext.bindChannel(streamId, server.upload(streamId, type));
+	public void createAndBind(Task task) {
+		DataflowServer server = task.get(DataflowServer.class);
+		task.bindChannel(streamId, server.upload(streamId, type));
 	}
 
 	public Class<T> getType() {

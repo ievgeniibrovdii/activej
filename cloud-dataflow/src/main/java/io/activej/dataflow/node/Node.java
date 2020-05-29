@@ -17,7 +17,7 @@
 package io.activej.dataflow.node;
 
 import io.activej.dataflow.graph.StreamId;
-import io.activej.dataflow.graph.TaskContext;
+import io.activej.dataflow.graph.Task;
 
 import java.util.Collection;
 
@@ -27,6 +27,8 @@ import static java.util.Collections.emptyList;
  * Defines a node in a single server.
  */
 public interface Node {
+	int getIndex();
+
 	/**
 	 * Returns a list of ids of inputs of this node.
 	 *
@@ -48,7 +50,7 @@ public interface Node {
 	/**
 	 * Defines internal node logic and binds it to the task context.
 	 *
-	 * @param taskContext task context to which certain logic is to be bound
+	 * @param task task context to which certain logic is to be bound
 	 */
-	void createAndBind(TaskContext taskContext);
+	void createAndBind(Task task);
 }

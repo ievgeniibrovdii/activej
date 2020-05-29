@@ -18,7 +18,7 @@ package io.activej.dataflow.node;
 
 import io.activej.dataflow.DataflowClient;
 import io.activej.dataflow.graph.StreamId;
-import io.activej.dataflow.graph.TaskContext;
+import io.activej.dataflow.graph.Task;
 import io.activej.datastream.StreamSupplier;
 
 import java.net.InetSocketAddress;
@@ -31,24 +31,22 @@ import static java.util.Collections.singletonList;
  *
  * @param <T> data items type
  */
-public final class NodeDownload<T> implements Node {
+public final class NodeDownload<T> extends AbstractNode {
 	private final Class<T> type;
 	private final InetSocketAddress address;
 	private final StreamId streamId;
 	private final StreamId output;
 
-	public NodeDownload(Class<T> type, InetSocketAddress address, StreamId streamId, StreamId output) {
+	public NodeDownload(int index, Class<T> type, InetSocketAddress address, StreamId streamId) {
+		this(index, type, address, streamId, new StreamId());
+	}
+
+	public NodeDownload(int index, Class<T> type, InetSocketAddress address, StreamId streamId, StreamId output) {
+		super(index);
 		this.type = type;
 		this.address = address;
 		this.streamId = streamId;
 		this.output = output;
-	}
-
-	public NodeDownload(Class<T> type, InetSocketAddress address, StreamId streamId) {
-		this.type = type;
-		this.address = address;
-		this.streamId = streamId;
-		this.output = new StreamId();
 	}
 
 	@Override
@@ -57,10 +55,10 @@ public final class NodeDownload<T> implements Node {
 	}
 
 	@Override
-	public void createAndBind(TaskContext taskContext) {
-		DataflowClient client = taskContext.get(DataflowClient.class);
+	public void createAndBind(Task task) {
+		DataflowClient client = task.get(DataflowClient.class);
 		StreamSupplier<T> stream = StreamSupplier.ofPromise(client.download(address, streamId, type));
-		taskContext.export(output, stream);
+		task.export(output, stream);
 	}
 
 	public Class<T> getType() {

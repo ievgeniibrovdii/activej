@@ -30,6 +30,7 @@ import io.activej.promise.Promises;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static io.activej.codec.StructuredCodecs.ofList;
 import static io.activej.codec.json.JsonUtils.toJson;
@@ -78,8 +79,8 @@ public final class DataflowGraph {
 			this.session = session;
 		}
 
-		public Promise<Void> execute(List<Node> nodes) {
-			return session.execute(nodes);
+		public Promise<Void> execute(long taskId, List<Node> nodes) {
+			return session.execute(taskId, nodes);
 		}
 
 		@Override
@@ -93,13 +94,13 @@ public final class DataflowGraph {
 	 */
 	public Promise<Void> execute() {
 		Map<Partition, List<Node>> nodesByPartition = getNodesByPartition();
+		long taskId = ThreadLocalRandom.current().nextInt() & (Integer.MAX_VALUE >>> 1);
 		return connect(nodesByPartition.keySet())
 				.then(sessions ->
 						Promises.all(
 								sessions.stream()
-										.map(session -> session.execute(nodesByPartition.get(session.partition))))
-								.whenException(() -> sessions.forEach(PartitionSession::close))
-				);
+										.map(session -> session.execute(taskId, nodesByPartition.get(session.partition))))
+								.whenException(() -> sessions.forEach(PartitionSession::close)));
 	}
 
 	private Promise<List<PartitionSession>> connect(Set<Partition> partitions) {
@@ -202,10 +203,11 @@ public final class DataflowGraph {
 							continue;
 						}
 						String nodeId = "n" + ++nodeCounter.value;
+						String name = node.getClass().getSimpleName();
 						sb.append("    ")
 								.append(nodeId)
 								.append(" [label=\"")
-								.append(node.getClass().getSimpleName())
+								.append(name.startsWith("Node") ? name.substring(4) : name)
 								.append("\"];\n");
 						nodeIds.put(node, nodeId);
 					}

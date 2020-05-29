@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Hosting debug</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+        integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div id="body" style="display: none">
+  <div class="container">
+    <div class="row my-2">
+      <h1 class="display-4">DATAFLOW DEBUG</h1>
+    </div>
+    <div class="row">
+      <div class="col-auto">
+        <div class="card">
+          <div class="card-header">Partitions</div>
+          <div class="list-group list-group-flush" id="partitions"></div>
+        </div>
+      </div>
+      <div class="col">
+        <ul class="nav nav-tabs" id="tabs" role="tablist">
+          <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#stats-content">Stats</a></li>
+          <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tasks-content">Tasks</a></li>
+          <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#controls-content">Controls</a></li>
+        </ul>
+        <div class="tab-content">
+          <div class="tab-pane" id="stats-content">
+            <div id="partition-view">
+              <table class="table table-sm">
+                <tr><td>running</td><td>0</td></tr>
+                <tr><td>succeeded</td><td>0</td></tr>
+                <tr><td>failed</td><td>0</td></tr>
+                <tr><td>cancelled</td><td>0</td></tr>
+              </table>
+            </div>
+          </div>
+          <div class="tab-pane" id="tasks-content">
+            <div class="row my-2">
+              <div class="col-auto">
+                <div class="list-group" id="tasks"></div>
+              </div>
+              <div class="col" id="task-view"></div>
+            </div>
+          </div>
+          <div class="tab-pane" id="controls-content">
+            <div class="row my-2">
+              <div class="col">
+                <button class="btn btn-danger" data-toggle="modal" data-target="#closingServerModal">STOP SERVER</button>
+                <div class="modal" tabindex="-1" role="dialog" id="closingServerModal">
+                  <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title">Are you sure?</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                          <span aria-hidden="true">&times;</span>
+                        </button>
+                      </div>
+                      <div class="modal-body">
+                        <p>You are about to stop the server</p>
+                      </div>
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">No</button>
+                        <button type="button" class="btn btn-danger" id="stopServerButton">Yes</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/main.js"></script>
+
+<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+        integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-dateFormat/1.0/jquery.dateFormat.min.js"
+        integrity="sha384-UOogAra4FheWB3/IBMJzelgdyE2qjnxxbeOjCF5c6IRvwKwGuAk0dZm9J8tw40wR"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-mousewheel/3.1.13/jquery.mousewheel.min.js"
+        integrity="sha384-jx+EoRqSnwNqHsZoMJl/OMDriDdzqdPXunQMsJOq6eUISEJxQkBgcR88EFkA2iHw"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
+        integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
+        crossorigin="anonymous"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
+        integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/viz.js"
+        integrity="sha384-f4dIboC5mwQKuVsNplQrKp19L8ttwIgw0LJNV0PsuIJYHTjIljdJ9cZdTqIVtk8y"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/lite.render.js"
+        integrity="sha384-c9XiWoJGmI7xy4ePo8MePqWol8l3tvIe2swNeEyYu67oLVLtZXi6C5QKAUg021v7"
+        crossorigin="anonymous"></script>
+</body>
+</html>

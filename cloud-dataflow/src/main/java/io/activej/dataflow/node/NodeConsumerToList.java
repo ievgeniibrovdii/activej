@@ -18,32 +18,33 @@ package io.activej.dataflow.node;
 
 import io.activej.dataflow.graph.StreamId;
 import io.activej.dataflow.graph.Task;
-import io.activej.datastream.processor.StreamFilter;
+import io.activej.datastream.StreamConsumer;
+import io.activej.datastream.StreamConsumerToList;
 
 import java.util.Collection;
-import java.util.function.Predicate;
+import java.util.List;
 
 import static java.util.Collections.singletonList;
 
 /**
- * Represents a node, which filters a data stream and passes to output data items which satisfy a predicate.
+ * Represents a node, which saves data items in a given list.
  *
  * @param <T> data items type
  */
-public final class NodeFilter<T> extends AbstractNode {
-	private final Predicate<T> predicate;
+public final class NodeConsumerToList<T> extends AbstractNode {
+	private final String listId;
 	private final StreamId input;
-	private final StreamId output;
 
-	public NodeFilter(int index, Predicate<T> predicate, StreamId input) {
-		this(index, predicate, input, new StreamId());
-	}
-
-	public NodeFilter(int index, Predicate<T> predicate, StreamId input, StreamId output) {
+	/**
+	 * Constructs a new node consumer, which saves data items from the given input stream to the specified list.
+	 *
+	 * @param input  id of input stream
+	 * @param listId id of output list
+	 */
+	public NodeConsumerToList(int index, StreamId input, String listId) {
 		super(index);
-		this.predicate = predicate;
+		this.listId = listId;
 		this.input = input;
-		this.output = output;
 	}
 
 	@Override
@@ -51,32 +52,31 @@ public final class NodeFilter<T> extends AbstractNode {
 		return singletonList(input);
 	}
 
-	@Override
-	public Collection<StreamId> getOutputs() {
-		return singletonList(output);
-	}
-
+	@SuppressWarnings("unchecked")
 	@Override
 	public void createAndBind(Task task) {
-		StreamFilter<T> streamFilter = StreamFilter.create(predicate);
-		task.bindChannel(input, streamFilter.getInput());
-		task.export(output, streamFilter.getOutput());
+		Object object = task.get(listId);
+		StreamConsumer<T> consumer;
+		if (object instanceof List) {
+			consumer = StreamConsumerToList.create((List<T>) object);
+		} else if (object instanceof StreamConsumer) {
+			consumer = (StreamConsumer<T>) object;
+		} else {
+			throw new IllegalStateException("Object with id " + listId + " is not a list or stream consumer, it is " + object);
+		}
+		task.bindChannel(input, consumer);
 	}
 
-	public Predicate<T> getPredicate() {
-		return predicate;
+	public Object getListId() {
+		return listId;
 	}
 
 	public StreamId getInput() {
 		return input;
 	}
 
-	public StreamId getOutput() {
-		return output;
-	}
-
 	@Override
 	public String toString() {
-		return "NodeFilter{predicate=" + predicate.getClass().getSimpleName() + ", input=" + input + ", output=" + output + '}';
+		return "NodeConsumerToList{listId=" + listId + ", input=" + input + '}';
 	}
 }

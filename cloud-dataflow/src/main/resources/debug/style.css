@@ -1,0 +1,32 @@
+
+/* remove those weird outlines */
+.nav-link:focus, .list-group-item:focus {
+  outline: none;
+}
+
+.graph-svg {
+  user-select: none;
+  /*pointer-events: none;*/
+  position: absolute;
+}
+
+/* trick to make it square with a side of 'width: 100%' */
+.graph-container:before {
+  content: "";
+  float: left;
+  padding-top: 100%;
+}
+
+.graph-container {
+  position: absolute;
+  border: inset 2px lightgray;
+  background: #fafafa;
+  overflow: hidden;
+  width: 100%;
+}
+
+.graph-info {
+  position: absolute;
+  user-select: none;
+  font-size: 0.75em;
+}
